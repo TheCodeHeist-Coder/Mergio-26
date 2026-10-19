@@ -7,3 +7,4 @@ allowBuilds:
   "pnpm": true
   "prisma": true
   "@prisma/engines": true
+  "esbuild": true

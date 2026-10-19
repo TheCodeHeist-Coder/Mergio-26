@@ -1,56 +1,188 @@
-# Turborepo Tailwind CSS starter
+# Mergio-26
 
-This Turborepo starter is maintained by the Turborepo core team.
+A Turborepo monorepo with a Next.js app, a shared UI library and a Prisma 7 + PostgreSQL database package.
 
-## Using this example
+## Project structure
 
-Run the following command:
+```
+apps/
+  web/                    Next.js 16 app (http://localhost:3001)
+  super-admin/            Next.js 16 super admin dashboard (http://localhost:3002)
+  backend/                Express 5 + TypeScript API (http://localhost:4000)
+packages/
+  db/                     Prisma 7 schema, migrations and the shared `prisma` client
+  ui/                     Shared React components (Tailwind CSS v4)
+  tailwind-config/        Shared Tailwind theme and PostCSS config
+  eslint-config/          Shared ESLint configs
+  typescript-config/      Shared tsconfig files
+docker-compose.yml        Local PostgreSQL for development
+```
+
+## Prerequisites
+
+- [Node.js](https://nodejs.org/) 24 or newer
+- [pnpm](https://pnpm.io/) (`npm install -g pnpm` or `corepack enable`)
+- A PostgreSQL database. See [Database setup](#database-setup) for options.
+
+## Getting started
+
+### 1. Clone and install
 
 ```sh
-npx create-turbo@latest -e with-tailwind
+git clone git@github.com:TheCodeHeist-Coder/Mergio-26.git
+cd Mergio-26
+pnpm install
 ```
 
-## What's inside?
+### 2. Configure environment variables
 
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app with [Tailwind CSS](https://tailwindcss.com/)
-- `web`: another [Next.js](https://nextjs.org/) app with [Tailwind CSS](https://tailwindcss.com/)
-- `ui`: a stub React component library with [Tailwind CSS](https://tailwindcss.com/) shared by both `web` and `docs` applications
-- `@repo/tailwind-config`: shared Tailwind CSS theme and PostCSS configuration
-- `@repo/eslint-config`: `eslint` flat configurations (includes `@next/eslint-plugin-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Building packages/ui
-
-This example is set up to produce compiled styles for `ui` components into the `dist` directory. The component `.tsx` files are consumed by the Next.js apps directly using `transpilePackages` in `next.config.ts`. This was chosen for several reasons:
-
-- Make sharing one theme from `packages/tailwind-config/shared-styles.css` to apps and packages as easy as possible.
-- Make package compilation simple by only depending on the Next.js Compiler and `tailwindcss`.
-- Ensure Tailwind classes do not overwrite each other. The `ui` package uses a `ui-` prefix for its classes via `@import "tailwindcss" prefix(ui);` in [packages/ui/src/styles.css](packages/ui/src/styles.css).
-- Maintain clear package export boundaries.
-
-Another option is to consume `packages/ui` directly from source without building. Tailwind CSS v4 automatically detects class names in your source files, but it does not scan other packages in `node_modules`. If you use this option, add [`@source` directives](https://tailwindcss.com/docs/functions-and-directives#source-directive) to the CSS entry point in your apps so Tailwind can find the class names used in the `ui` package:
-
-```css
-@import "tailwindcss";
-@import "@repo/tailwind-config";
-
-@source "../../../packages/ui/src";
+```sh
+cp packages/db/.env.example packages/db/.env
+cp packages/db/.env.example apps/web/.env
 ```
 
-If you choose this strategy, you can remove the `tailwindcss` dependency and the `build:styles` script from the `ui` package.
+Both files need the same `DATABASE_URL`. Prisma reads `packages/db/.env`, and the Next.js app reads `apps/web/.env`. The default value matches the Docker setup below. If you use a different database, change it in both files.
 
-### Utilities
+### 3. Set up the database
 
-This Turborepo has some additional tools already setup for you:
+Choose one of the [database options](#database-setup), then create the tables:
 
-- [Tailwind CSS](https://tailwindcss.com/) for styles
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-# Mergio-26
+```sh
+pnpm db:migrate
+```
+
+### 4. Start the dev server
+
+```sh
+pnpm dev
+```
+
+The web app runs at http://localhost:3001 and the super admin app at http://localhost:3002.
+
+To run only one app, use `pnpm dev --filter web` or `pnpm dev --filter super-admin`.
+
+The super admin app and the backend also need their own `.env`:
+
+```sh
+cp packages/db/.env.example apps/super-admin/.env
+cp apps/backend/.env.example apps/backend/.env
+```
+
+The backend API runs at http://localhost:4000. `GET /health` checks that the server and database are up.
+
+## Database setup
+
+The app works with any PostgreSQL database. Choose one of these options and put its connection string in `DATABASE_URL`.
+
+### Option A: Docker Compose (recommended)
+
+You need [Docker](https://docs.docker.com/get-docker/) installed. From the repo root:
+
+```sh
+docker compose up -d
+```
+
+This starts PostgreSQL 16 on **port 5433**. That port avoids a clash with any Postgres you already run on 5432. The default URL works as-is:
+
+```
+DATABASE_URL="postgresql://postgres:postgres@localhost:5433/mergio?schema=public"
+```
+
+Useful commands:
+
+```sh
+docker compose ps         # check status
+docker compose down       # stop (data is kept)
+docker compose down -v    # stop and delete all data
+```
+
+### Option B: Plain `docker run`
+
+Use this to run the same database without Docker Compose:
+
+```sh
+docker run -d --name mergio-postgres \
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=mergio \
+  -p 5433:5432 -v mergio-postgres-data:/var/lib/postgresql/data \
+  postgres:16-alpine
+```
+
+The default `DATABASE_URL` works as-is.
+
+### Option C: PostgreSQL installed locally
+
+Install PostgreSQL with your system package manager (`sudo apt install postgresql`, `brew install postgresql@16`, or the [Windows installer](https://www.postgresql.org/download/windows/)). Then create a database:
+
+```sh
+createdb mergio
+```
+
+Update `DATABASE_URL` with your local user, password and port (usually 5432):
+
+```
+DATABASE_URL="postgresql://<user>:<password>@localhost:5432/mergio?schema=public"
+```
+
+### Option D: Hosted PostgreSQL (no local install)
+
+Create a free database on a hosted provider such as [Neon](https://neon.tech), [Supabase](https://supabase.com) or [Prisma Postgres](https://www.prisma.io/postgres). Copy its connection string into `DATABASE_URL`. Hosted providers usually require SSL, so add `?sslmode=require` if the provider's string doesn't already include it.
+
+> Use the **direct** (non-pooled) connection string when running migrations.
+
+## Working with the database
+
+The schema is in [packages/db/prisma/schema.prisma](packages/db/prisma/schema.prisma). After you change it:
+
+```sh
+pnpm db:migrate     # create and apply a migration (asks for a name)
+```
+
+Other commands:
+
+| Command            | What it does                                            |
+| ------------------ | ------------------------------------------------------- |
+| `pnpm db:generate` | Regenerate the Prisma client (also runs before `dev`/`build`) |
+| `pnpm db:migrate`  | Create and apply a new migration in development         |
+| `pnpm db:push`     | Sync the schema without creating a migration (prototyping) |
+| `pnpm db:studio`   | Open Prisma Studio to browse and edit data              |
+
+Apply migrations in production with `pnpm --filter @repo/db db:deploy`.
+
+### Using the client
+
+Import the shared client in server-side code only, such as server components, route handlers and server actions:
+
+```ts
+import { prisma } from "@repo/db";
+
+const users = await prisma.user.findMany();
+```
+
+## Scripts
+
+Run these from the repo root:
+
+| Command            | What it does                         |
+| ------------------ | ------------------------------------ |
+| `pnpm dev`         | Start all apps in development mode   |
+| `pnpm build`       | Build all apps and packages          |
+| `pnpm lint`        | Lint all packages                    |
+| `pnpm check-types` | Type-check all packages              |
+| `pnpm format`      | Format code with Prettier            |
+
+## Troubleshooting
+
+**`OS file watch limit reached` (Linux).** The dev server watches more files than the default limit allows. Raise the limit:
+
+```sh
+echo -e "fs.inotify.max_user_watches=524288\nfs.inotify.max_user_instances=512" | sudo tee /etc/sysctl.d/60-inotify.conf
+sudo sysctl --system
+```
+
+**Strange build or CSS errors after a crash.** Clear the Next.js cache and restart:
+
+```sh
+rm -rf apps/web/.next && pnpm dev
+```
+
+**`Can't reach database server`.** Check that your database is running (`docker compose ps` for Docker). Also check that `DATABASE_URL` is the same in `packages/db/.env` and `apps/web/.env`.

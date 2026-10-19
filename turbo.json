@@ -18,7 +18,10 @@
         "!.next/dev/**"
       ],
       "env": [
-        "DATABASE_URL"
+        "DATABASE_URL",
+        "PORT",
+        "CORS_ORIGIN",
+        "NODE_ENV"
       ]
     },
     "lint": {
